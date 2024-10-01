@@ -1,15 +1,15 @@
 ![](figures/Pipeline.png)
 
-# DeepECG: Empowering genome-wide association study by imputing electrocardiograms from genotype in UK-biobank 
-DeepECG is a densely connected network for ECG traits prediction using genotype data. The predicted ECG traits by DeepECG can be used to predict cardiovascular diseases (CVDs) risk and perform GWAS.
+# CapECG: Empowering genetic discoveries and cardiovascular risk assessment by predicting electrocardiograms from genotype in UK-biobank 
+CapECG is an attention-based Capsule Network for ECG traits prediction using genotype data. The predicted ECG traits by CapECG can be used to predict cardiovascular diseases (CVDs) risk and perform GWAS.
 
 ## Installation
 
-To reproduce **DeepECG**, we suggest first create a conda environment by:
+To reproduce **CapECG**, we suggest first create a conda environment by:
 
 ~~~shell
-conda create -n DeepECG python=3.8
-conda activate DeepECG
+conda create -n CapECG python=3.8
+conda activate CapECG
 ~~~
 
 and then run the following code to install the required package:
@@ -31,94 +31,111 @@ PLINK (v1.90) can be downloaded from  https://www.cog-genomics.org/plink/ .
 
 ## 1. Data preprocessing
 
-
-### 1.1 Extracting SNPs from bfile and encoding SNP as (0/1/2)
+### 1.1 Data Quality Control
 
 ![](figures/Step1.1.png)
 
-PLINK (v1.90) is used to extract specific SNPs required for running DeepECG from the genotype data in bfile format. These SNPs are encoded as sample-major additive **(0/1/2)**. Here,“0” refers to homozygous for the reference allele, “1” refers to heterozygous for the alternative allele, and “2” refers to the homozygous for the alternative allele. The results will be saved in "rawdata_path". The code is:
+PLINK (v1.90) is used to perform quality control for genotype data in bfile format. The results will be saved in "QCedSNPs.qc2". The code is:
 
 ```
-cd DeepECG
-plink --bfile mydata \ # input data (plink bfile)
-	  --extract ./data/SNP_list/SNP_path \ #input data (SNPs used for ECG prediction)
-	  --export A \
-	  --out ./data/npy_data/rawdata_path #output
+cd CapECG
+plink --bfile QCedSNPs --geno 0.0 --maf 0.01 --hwe 1e-5 midp include-nonctrl  --make-bed --out QCedSNPs.qc1
+
+plink --bfile QCedSNPs.qc1 --het --test-missing midp --pfilter 1e-4 --make-bed --out QCedSNPs.qc2
 ```
-By running the above code, the output file will be stored in one specific path:
-- `./data/npy_data/rawdata_path`: storing the specific SNPs encoded as 0/1/2
 
-An example raw data can be downloaded from “./data/Example_spQRSTa.raw”
+### 1.2 Split data into training-test set
 
-### 1.2 Convert raw data into binary file in .npy format
-
-![](figures/Step1.2.png)
-
-The genotype data pre-processed by PLINK will be converted into an array, a binary file in “.npy” format by  numpy(1.19.2). The code is:
+The genotype data pre-processed by PLINK will be split into training-test set. The code is:
 
 ```
-python ./preprocess.py --rawdata ./data/npy_data/rawdata_path \ #input data (geneotype raw data)
-	      --geno_out ./data/npy_data/npy_path \ #output (genotype data in .npy format)
-              --FID_out ./data/npy_data/FID_path #output (sample ID)
+plink --bfile QCedSNPs.qc2 --keep train_FID.txt --make-bed --out QCedSNPs.qc2.train
+
+plink --bfile QCedSNPs.qc2 --keep test_FID.txt --make-bed --out QCedSNPs.qc2.test
+```
+
+### 1.3 GWAS for training data
+
+![](figures/Step1.3.png)
+
+BOLT-LMM is used to perform GWAS for training data in bfile format. You need to provide the phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait. The results will be saved in "file_out". The code of BOLT-LMM for GWAS is availabe at  https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html, and BOLT-LMM can be run by the code:
+
+
+```
+./BOLT-LMM_v2.3.5/bolt \
+--bfile=QCedSNPs.qc2.train --LDscoresFile=file_ld \
+--lmm \
+--phenoFile=file_pheno --phenoCol=trait \
+--covarFile=file_pheno --qCovarCol=age --covarCol=sex --covarCol=center --covarCol=batch --covarMaxLevels=120 \
+--modelSnps=file_modsnp \
+--statsFile=file_out #QCedSNPs.qc2.train_GWAS.trait
+```
+
+### 1.4 Perform LD-PCA analysis
+
+LD-PCA is used to reduce the data dimension using LD information for genotype data in bfile format. The results will be saved in "./data/trait". The code is:
+
+```
+python LD_PCA.py 
+--ECG_trait trait 
+--GWAS_path QCedSNPs.qc2.train_GWAS.trait 
+--save_dir ./data/trait 
+--train_FID_path train_FID.txt 
+--test_FID_path test_FID.txt 
+--bfile QCedSNPs.qc2
 ```
 By running the above command, two files will be generated under specific path: 
-- `./data/npy_data/npy_path`: a binary file storing the genotype data in .npy format
-- `./data/npy_data/FID_path`: a table file storing the sample ID
+- `./data/trait/npy_data/train.npy`: a binary file storing the genotype data in .npy format for training set
+- `./data/trait/npy_data/test.npy`: a binary file storing the genotype data in .npy format for testing set
+These SNPs are encoded as sample-major additive **(0/1/2)**. Here,“0” refers to homozygous for the reference allele, “1” refers to heterozygous for the alternative allele, and “2” refers to the homozygous for the alternative allele. 
 
-## 2. Predicting ECG traits by DeepECG
+## 2. Training CapECG for ECG traits prediction
 
 ![](figures/Step2.png)
 
-The processed genotype data are used as input of DeepECG. DeepECG will output a table (column name: FID, predicted_trait) in .csv format. The first column of output file is the sample ID, the second column is predicted value (ranging from -1, 1) of ECG trait. The code is:
+The processed genotype data in .npy format are used as input of CapECG.  The code is:
 
 ```
-python main.py  --ECG_trait feature \ # indicated ECG trait for prediction
-                --geno_path  ./data/npy_data/npy_path \ # input genotype data
-                --FID_path  ./data/npy_dataFID_path \ # input sample ID
-                --out ./data/predicted_ECG_traits/feature.csv  # output ECG trait
+python train_CapECG.py  --ECG_trait trait \ # indicated ECG trait for prediction
+                --npy_dir  \ # The path of data folder containing two input genotype data (train.npy, test.npy)
+                --pheno_path  ./data/file_pheno \ # The phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait.
+		--model_dir # The path of the folder used to save the model parameters
 ```
-Running the above command will generate one output file in the output path:
-- `./data/predicted_ECG_traits/feature.csv`: a table file storing the predicted ECG trait.
 
-The "ECG_trait" is the name of the ECG trait (For example, spQRSTa, III_S) required input of "main.py". The name of the ECG trait can be found from ".data/ECG_traits_list.txt". 
+## 3. Applications of train_CapECG in CVDs prediction and GWAS
 
-## 3. Applications of DeepECG in CVDs prediction and GWAS
-
-### 3.1 Use ECG traits to predict cardiovascular disease
+### 3.1 Use ECG traits to predict cardiovascular disease (DeepCVD)
 
 ![](figures/Step3.1.png)
 
-The output file of “main.py” is input into "cvd_pred.py" to predict the risk of CVDs by running the code:
+The predicted ECG traits are input into "DeepCVD_pred.py" to predict the risk of CVDs by running the code:
 ```
-python CVD_predict.py  --CVD_name CVD \ # the name of cardiovascular disease for prediction
+python train_CapECG  --CVD_name CVD \ # the name of cardiovascular disease for prediction
                 --ECG_trait_path  ./data/predicted_ECG_traits/feature.csv \ # input ECG traits
                 --out ./data/CVD_risk.csv  # output (predicted CVD risk)
 ```
 Running the above command will generate one output file in the output path:
 - `./data/predicted_ECG_traits/feature.csv`: a table storing the predicted CVD risk. The first column is the sample ID, and the second column is the predicted risk of the disease.
 
-The code "cvd_pred.py" is developed for predicting nine types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF), Aortic aneurysm (AA), Cardiomyopathy (CM), Coronary atherosclerosis (CA), and all-cause Heart Failure (HF).
+The code "cvd_pred.py" is developed for predicting six types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF), Aortic aneurysm (AA), Cardiomyopathy (CM), Coronary atherosclerosis (CA), and all-cause Heart Failure (HF).
 The "CVD_name" is required input into "cvd_pred.py", which is the short name of disease.
-
-
-
 
 
 ### 3.2 Use ECG traits to perform GWAS analysis
 
 ![](figures/Step3.2.png)
 
-When DeepECG has been used in a large population for predicting ECG traits from genotype, the predicted ECG traits is able to be used for GWAS to identify novel SNP assocations. The code of BOLT-LMM (v2.3.5) for GWAS is availabe at  https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html, and BOLT-LMM can be run by the code:
+When CapECG has been used in a large population for predicting ECG traits from genotype, the predicted ECG traits is able to be used for GWAS to identify novel SNP assocations. The code of BOLT-LMM for GWAS is availabe at  https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html, and BOLT-LMM can be run by the code:
 
 ```
-./BOLT-LMM_v2.3.5/bolt --bfile=$file_bfile \ # input genotype data
---LDscoresFile=$file_ld \ # input SNP LD data
+./BOLT-LMM_v2.3.5/bolt --bfile=file_bfile \ # input genotype data
+--LDscoresFile=file_ld \ # input SNP LD data
 --lmm \
---phenoFile=$file_pheno \ # input ECG trait data
---phenoCol=$trait \ # input ECG trait
---modelSnps=$file_modsnp \ # input SNP list
---numThreads=$nthread \
---statsFile=$file_out # output GWAS
+--phenoFile=file_pheno \ # input ECG trait data
+--phenoCol=trait \ # input ECG trait
+--modelSnps=file_modsnp \ # input SNP list
+--numThreads=nthread \
+--statsFile=file_out # output GWAS
 ```
 
 ## Citation
@@ -129,8 +146,8 @@ If you find our codes useful, please consider citing our work:
 
 
 @article{
-  title={Empowering genome-wide association study by imputing electrocardiograms from genotype in UK-biobank},
-  author={Siying Lin, Mengling Qi, Yuedong Yang, Huiying Zhao*},
+  title={Empowering genetic discoveries and cardiovascular risk assessment by predicting electrocardiograms from genotype in UK-biobank},
+  author={Siying Lin, Yuedong Yang, Huiying Zhao*},
   journal={},
   year={2024},
 }
