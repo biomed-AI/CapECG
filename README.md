@@ -39,6 +39,7 @@ PLINK (v1.90) is used to perform quality control for genotype data in bfile form
 
 ```
 cd CapECG
+
 plink --bfile QCedSNPs --geno 0.0 --maf 0.01 --hwe 1e-5 midp include-nonctrl  --make-bed --out QCedSNPs.qc1
 
 plink --bfile QCedSNPs.qc1 --het --test-missing midp --pfilter 1e-4 --make-bed --out QCedSNPs.qc2
@@ -72,6 +73,8 @@ BOLT-LMM is used to perform GWAS for training data in bfile format. You need to 
 ```
 
 ### 1.4 Perform LD-PCA analysis
+
+![](figures/Step1.4.png)
 
 LD-PCA is used to reduce the data dimension using LD information for genotype data in bfile format. The results will be saved in "./data/trait". The code is:
 
