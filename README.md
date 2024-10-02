@@ -35,7 +35,7 @@ PLINK (v1.90) can be downloaded from  https://www.cog-genomics.org/plink/ .
 
 ![](figures/Step1.1.png)
 
-PLINK (v1.90) is used to perform quality control for genotype data in bfile format. The results will be saved in "QCedSNPs.qc2". The code is:
+PLINK (v1.90) is used to perform quality control for genotype data in bfile format. The result will be saved in "QCedSNPs.qc2". The code is:
 
 ```
 cd CapECG
@@ -59,7 +59,7 @@ plink --bfile QCedSNPs.qc2 --keep test_FID.txt --make-bed --out QCedSNPs.qc2.tes
 
 ![](figures/Step1.3.png)
 
-BOLT-LMM is used to perform GWAS for training data in bfile format. You need to provide the phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait. The results will be saved in "file_out". The code of BOLT-LMM for GWAS is availabe at  https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html, and BOLT-LMM can be run by the code:
+BOLT-LMM is used to perform GWAS for training data. You need to provide the phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait. The results will be saved in "file_out". The code of BOLT-LMM for GWAS is availabe at  https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html, and BOLT-LMM can be run by the code:
 
 
 ```
@@ -79,13 +79,12 @@ BOLT-LMM is used to perform GWAS for training data in bfile format. You need to 
 LD-PCA is used to reduce the data dimension using LD information for genotype data in bfile format. The results will be saved in "./data/trait". The code is:
 
 ```
-python LD_PCA.py 
---ECG_trait trait 
---GWAS_path QCedSNPs.qc2.train_GWAS.trait 
---save_dir ./data/trait 
---train_FID_path train_FID.txt 
---test_FID_path test_FID.txt 
---bfile QCedSNPs.qc2
+python LD_PCA.py --ECG_trait trait \ # indicated ECG trait for prediction
+		--GWAS_path QCedSNPs.qc2.train_GWAS.trait \ # GWAS for training data
+		--save_dir ./data/trait \ # the path of the folder for saving the results
+		--train_FID_path train_FID.txt \ # the list of human ID of training set
+		--test_FID_path test_FID.txt \ # the list of human ID of testing set
+		--bfile QCedSNPs.qc2 # genotype data in bfile format
 ```
 By running the above command, two files will be generated under specific path: 
 - `./data/trait/npy_data/train.npy`: a binary file storing the genotype data in .npy format for training set
@@ -100,12 +99,12 @@ The processed genotype data in .npy format are used as input of CapECG.  The cod
 
 ```
 python train_CapECG.py  --ECG_trait trait \ # indicated ECG trait for prediction
-                --npy_dir  \ # The path of data folder containing two input genotype data (train.npy, test.npy)
-                --pheno_path  ./data/file_pheno \ # The phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait.
-		--model_dir # The path of the folder used to save the model parameters
+                --npy_dir  \ # the path of data folder containing two input genotype data (train.npy, test.npy)
+                --pheno_path  ./data/file_pheno \ # the phenotype file (file_pheno) with FID, IID, age, sex, center, batch and trait.
+		--model_dir # the path of the folder for saving the model parameters
 ```
 
-## 3. Applications of train_CapECG in CVDs prediction and GWAS
+## 3. Applications of CapECG in CVDs prediction and GWAS
 
 ### 3.1 Use ECG traits to predict cardiovascular disease (DeepCVD)
 
@@ -113,15 +112,15 @@ python train_CapECG.py  --ECG_trait trait \ # indicated ECG trait for prediction
 
 The predicted ECG traits are input into "DeepCVD_pred.py" to predict the risk of CVDs by running the code:
 ```
-python train_CapECG  --CVD_name CVD \ # the name of cardiovascular disease for prediction
+python DeepCVD_pred.py  --CVD_name CVD \ # the name of cardiovascular disease for prediction
                 --ECG_trait_path  ./data/predicted_ECG_traits/feature.csv \ # input ECG traits
                 --out ./data/CVD_risk.csv  # output (predicted CVD risk)
 ```
 Running the above command will generate one output file in the output path:
-- `./data/predicted_ECG_traits/feature.csv`: a table storing the predicted CVD risk. The first column is the sample ID, and the second column is the predicted risk of the disease.
+- `./data/CVD_risk.csv`: a table storing the predicted CVD risk. The first column is the human ID, and the second column is the predicted risk of the disease.
 
-The code "cvd_pred.py" is developed for predicting six types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF), Aortic aneurysm (AA), Cardiomyopathy (CM), Coronary atherosclerosis (CA), and all-cause Heart Failure (HF).
-The "CVD_name" is required input into "cvd_pred.py", which is the short name of disease.
+The code "cvd_pred.py" is developed for predicting six types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF) and Coronary atherosclerosis (CA).
+The "CVD_name" is required input into "DeepCVD_pred.py", which is the short name of disease.
 
 
 ### 3.2 Use ECG traits to perform GWAS analysis
