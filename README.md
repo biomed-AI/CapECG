@@ -89,6 +89,7 @@ python LD_PCA.py --ECG_trait trait \ # indicated ECG trait for prediction
 By running the above command, two files will be generated under specific path: 
 - `./data/trait/npy_data/train.npy`: a binary file storing the genotype data in .npy format for training set
 - `./data/trait/npy_data/test.npy`: a binary file storing the genotype data in .npy format for testing set
+
 These SNPs are encoded as sample-major additive **(0/1/2)**. Here,“0” refers to homozygous for the reference allele, “1” refers to heterozygous for the alternative allele, and “2” refers to the homozygous for the alternative allele. 
 
 ## 2. Training CapECG for ECG traits prediction
@@ -112,15 +113,14 @@ python train_CapECG.py  --ECG_trait trait \ # indicated ECG trait for prediction
 
 The predicted ECG traits are input into "DeepCVD_pred.py" to predict the risk of CVDs by running the code:
 ```
-python DeepCVD_pred.py  --CVD_name CVD \ # the name of cardiovascular disease for prediction
+python DeepCVD_pred.py  --CVD CVD \ # the name of cardiovascular disease for prediction
                 --ECG_trait_path  ./data/predicted_ECG_traits/feature.csv \ # input ECG traits
                 --out ./data/CVD_risk.csv  # output (predicted CVD risk)
 ```
 Running the above command will generate one output file in the output path:
 - `./data/CVD_risk.csv`: a table storing the predicted CVD risk. The first column is the human ID, and the second column is the predicted risk of the disease.
 
-The code "cvd_pred.py" is developed for predicting six types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF) and Coronary atherosclerosis (CA).
-The "CVD_name" is required input into "DeepCVD_pred.py", which is the short name of disease.
+The code "DeepCVD_pred.py" is developed for predicting six types of diseases including essential hypertension (EH), angina pectoris (AP), myocardial infarction (MI), ischaemic heart disease (IHD), Atrial fibrillation (AF) and Coronary atherosclerosis (CA). The "CVD" is required input into "DeepCVD_pred.py", which is the short name of disease.
 
 
 ### 3.2 Use ECG traits to perform GWAS analysis
