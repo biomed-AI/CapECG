@@ -83,8 +83,8 @@ If you find our codes useful, please consider citing our work:
 
 @article{
   title={Empowering genetic discoveries and cardiovascular risk assessment by predicting electrocardiograms from genotype},
-  author={Siying Lin, Yuedong Yang, Huiying Zhao*},
-  journal={},
+  author={Siying Lin, Yuedong Yang*, Huiying Zhao*},
+  journal={npj Digital Medicine},
   year={2026},
 }
 ~~~
